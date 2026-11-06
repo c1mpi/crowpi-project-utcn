@@ -2,6 +2,7 @@ import paho.mqtt.client as mqtt
 import time
 from smbus2 import SMBus
 from gpiozero import OutputDevice
+#test
 
 # 1. Configurare Hardware CrowPi (Releu pe GPIO 21, Buzzer pe GPIO 18)
 releu = OutputDevice(21, active_high=True, initial_value=False)
