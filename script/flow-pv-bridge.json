@@ -1,0 +1,83 @@
+[
+    {
+        "id": "pvtab0000000001",
+        "type": "tab",
+        "label": "PV Dashboard",
+        "disabled": false,
+        "info": "Trimite datele MQTT (scada/pv/data) către pagina web prin WebSocket /ws/pv și servește pagina la /pv"
+    },
+    {
+        "id": "pvws00000000001",
+        "type": "websocket-listener",
+        "path": "/ws/pv",
+        "wholemsg": "false"
+    },
+    {
+        "id": "pvmqttin0000001",
+        "type": "mqtt in",
+        "z": "pvtab0000000001",
+        "name": "PV date senzori",
+        "topic": "scada/pv/data",
+        "qos": "0",
+        "datatype": "utf8",
+        "broker": "8c5097a040c4b358",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 160,
+        "y": 100,
+        "wires": [["pvwsout0000001"]]
+    },
+    {
+        "id": "pvwsout0000001",
+        "type": "websocket out",
+        "z": "pvtab0000000001",
+        "name": "",
+        "server": "pvws00000000001",
+        "client": "",
+        "x": 420,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "pvhttpin0000001",
+        "type": "http in",
+        "z": "pvtab0000000001",
+        "name": "",
+        "url": "/pv",
+        "method": "get",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 130,
+        "y": 200,
+        "wires": [["pvfilein0000001"]]
+    },
+    {
+        "id": "pvfilein0000001",
+        "type": "file in",
+        "z": "pvtab0000000001",
+        "name": "index.html",
+        "filename": "~/workspace/script/index.html",
+        "filenameType": "str",
+        "format": "utf8",
+        "chunk": false,
+        "sendError": false,
+        "encoding": "none",
+        "allProps": false,
+        "x": 330,
+        "y": 200,
+        "wires": [["pvhttpresp000001"]]
+    },
+    {
+        "id": "pvhttpresp000001",
+        "type": "http response",
+        "z": "pvtab0000000001",
+        "name": "",
+        "statusCode": "",
+        "headers": {"content-type": "text/html; charset=utf-8"},
+        "x": 530,
+        "y": 200,
+        "wires": []
+    }
+]

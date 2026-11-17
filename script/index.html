@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CrowPi · Monitorizare centrală fotovoltaică</title>
+<style>
+  :root{
+    --bg:#0a1020; --bg2:#0e1629; --card:#131d33; --card2:#18243f; --line:#223153;
+    --txt:#e8edf7; --mut:#8c9bb8; --dim:#5d6c8a;
+    --sun:#fbbf24; --heat:#fb7185; --water:#38bdf8; --eff:#34d399; --pow:#a78bfa;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:radial-gradient(1200px 600px at 10% -10%,#16264a 0%,transparent 60%),radial-gradient(900px 500px at 100% 0%,#1d1a3d 0%,transparent 55%),var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;min-height:100%}
+  body{padding:22px 26px 40px;max-width:1500px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+  .brand{display:flex;align-items:center;gap:14px}
+  .logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#fbbf24,#fb923c);display:grid;place-items:center;box-shadow:0 6px 24px rgba(251,191,36,.35)}
+  .logo svg{width:26px;height:26px}
+  h1{font-size:20px;font-weight:650;letter-spacing:.2px}
+  .sub{color:var(--mut);font-size:13px;margin-top:2px}
+  .right{display:flex;align-items:center;gap:12px}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;font-size:12.5px;font-weight:600;background:var(--card);border:1px solid var(--line)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--dim)}
+  .pill.live .dot{background:var(--eff);box-shadow:0 0 0 0 rgba(52,211,153,.7);animation:pulse 1.8s infinite}
+  .pill.demo .dot{background:var(--sun)}
+  @keyframes pulse{70%{box-shadow:0 0 0 9px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+  #clock{font-variant-numeric:tabular-nums;color:var(--mut);font-size:14px}
+
+  .banner{display:none;margin-bottom:16px;padding:12px 16px;border-radius:12px;background:rgba(251,113,133,.12);border:1px solid rgba(251,113,133,.4);color:#ffc4cd;font-size:14px}
+  .banner.show{display:block}
+
+  .grid{display:grid;gap:16px}
+  .kpis{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .card{background:linear-gradient(180deg,var(--card) 0%,var(--bg2) 100%);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;position:relative;overflow:hidden}
+  .card h3{font-size:12px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:.9px;display:flex;align-items:center;gap:8px}
+  .card h3 i{width:8px;height:8px;border-radius:3px;display:inline-block}
+  .val{font-size:34px;font-weight:700;margin-top:10px;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+  .val small{font-size:15px;color:var(--mut);font-weight:500;margin-left:4px}
+  .note{color:var(--dim);font-size:12px;margin-top:4px;font-variant-numeric:tabular-nums}
+  .spark{display:block;width:100%;height:36px;margin-top:10px}
+
+  .main{grid-template-columns:minmax(0,2.2fr) minmax(0,1fr);margin-top:16px}
+  .charts{display:grid;gap:16px}
+  .chead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px;flex-wrap:wrap}
+  .legend{display:flex;gap:16px;font-size:12.5px;color:var(--mut)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend b{width:10px;height:3px;border-radius:2px;display:inline-block}
+  canvas.chart{width:100%;height:290px;display:block}
+  .seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px}
+  .seg button{background:none;border:0;color:var(--mut);font-size:12px;padding:5px 11px;border-radius:7px;cursor:pointer;font-weight:600}
+  .seg button.on{background:var(--card2);color:var(--txt)}
+
+  .side{display:grid;gap:16px;align-content:start}
+  .gauge-wrap{display:grid;place-items:center;padding-top:6px}
+  .gauge-wrap svg{width:100%;max-width:290px}
+  .gtxt{text-align:center;margin-top:-6px}
+  .gtxt .big{font-size:40px;font-weight:700;font-variant-numeric:tabular-nums}
+  .gtxt .lbl{color:var(--mut);font-size:13px}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+  .stat{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+  .stat .k{font-size:11.5px;color:var(--mut)}
+  .stat .v{font-size:19px;font-weight:650;margin-top:3px;font-variant-numeric:tabular-nums}
+
+  .params{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;margin-top:12px}
+  .params label{font-size:11.5px;color:var(--mut);display:block;margin-bottom:4px}
+  .params input{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:9px;color:var(--txt);padding:8px 10px;font-size:14px;outline:none}
+  .params input:focus{border-color:var(--water)}
+  .formula{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--mut);line-height:1.7;margin-top:12px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  footer{margin-top:22px;color:var(--dim);font-size:12px;text-align:center}
+  #tip{position:fixed;pointer-events:none;background:#0b1328ee;border:1px solid var(--line);border-radius:10px;padding:8px 11px;font-size:12.5px;display:none;z-index:9;line-height:1.55;backdrop-filter:blur(6px)}
+
+  @media (max-width:1250px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.main{grid-template-columns:1fr}}
+  @media (max-width:640px){body{padding:14px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.val{font-size:27px}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0a1020" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </div>
+    <div>
+      <h1>Monitorizare centrală fotovoltaică</h1>
+      <div class="sub">CrowPi · Raspberry Pi 5 · temperatură, umiditate, lumină → randament</div>
+    </div>
+  </div>
+  <div class="right">
+    <span id="clock">--:--:--</span>
+    <span class="pill demo" id="status"><span class="dot"></span><span id="statusTxt">DEMO</span></span>
+  </div>
+</header>
+
+<div class="banner" id="banner"></div>
+
+<section class="grid kpis">
+  <div class="card"><h3><i style="background:var(--heat)"></i>Temp. aer</h3><div class="val"><span id="kTemp">--</span><small>°C</small></div><canvas class="spark" id="sTemp"></canvas></div>
+  <div class="card"><h3><i style="background:var(--water)"></i>Umiditate</h3><div class="val"><span id="kHum">--</span><small>%</small></div><canvas class="spark" id="sHum"></canvas></div>
+  <div class="card"><h3><i style="background:var(--sun)"></i>Iradianță</h3><div class="val"><span id="kG">--</span><small>W/m²</small></div><div class="note"><span id="kLux">--</span> lux</div><canvas class="spark" id="sG" style="height:22px;margin-top:6px"></canvas></div>
+  <div class="card"><h3><i style="background:var(--heat)"></i>Temp. celulă</h3><div class="val"><span id="kTc">--</span><small>°C</small></div><div class="note">estimată (NOCT)</div><canvas class="spark" id="sTc" style="height:22px;margin-top:6px"></canvas></div>
+  <div class="card"><h3><i style="background:var(--eff)"></i>Randament</h3><div class="val"><span id="kEta">--</span><small>%</small></div><div class="note">corectat termic</div><canvas class="spark" id="sEta" style="height:22px;margin-top:6px"></canvas></div>
+  <div class="card"><h3><i style="background:var(--pow)"></i>Putere estimată</h3><div class="val"><span id="kP">--</span><small id="kPu">W</small></div><div class="note">panou <span id="kArea">--</span> m²</div><canvas class="spark" id="sP" style="height:22px;margin-top:6px"></canvas></div>
+</section>
+
+<section class="grid main">
+  <div class="charts">
+    <div class="card">
+      <div class="chead">
+        <h3>Iradianță și putere</h3>
+        <div class="legend"><span><b style="background:var(--sun)"></b>Iradianță (W/m²)</span><span><b style="background:var(--pow)"></b>Putere (W)</span></div>
+        <div class="seg" id="range"><button data-n="60">1 min</button><button data-n="300" class="on">5 min</button><button data-n="1800">30 min</button><button data-n="0">Tot</button></div>
+      </div>
+      <canvas class="chart" id="c1"></canvas>
+    </div>
+    <div class="card">
+      <div class="chead">
+        <h3>Temperaturi și randament</h3>
+        <div class="legend"><span><b style="background:var(--water)"></b>Aer (°C)</span><span><b style="background:var(--heat)"></b>Celulă (°C)</span><span><b style="background:var(--eff)"></b>Randament (%)</span></div>
+      </div>
+      <canvas class="chart" id="c2"></canvas>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="card">
+      <h3><i style="background:var(--eff)"></i>Randament curent</h3>
+      <div class="gauge-wrap">
+        <svg viewBox="0 0 240 150">
+          <defs><linearGradient id="gg" x1="0" x2="1"><stop offset="0" stop-color="#fb7185"/><stop offset=".5" stop-color="#fbbf24"/><stop offset="1" stop-color="#34d399"/></linearGradient></defs>
+          <path d="M 30 130 A 90 90 0 0 1 210 130" fill="none" stroke="#223153" stroke-width="16" stroke-linecap="round"/>
+          <path id="garc" d="M 30 130 A 90 90 0 0 1 210 130" fill="none" stroke="url(#gg)" stroke-width="16" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/>
+          <text x="30" y="148" fill="#5d6c8a" font-size="11" text-anchor="middle">0%</text>
+          <text x="210" y="148" fill="#5d6c8a" font-size="11" text-anchor="middle" id="gmax">25%</text>
+        </svg>
+      </div>
+      <div class="gtxt"><div class="big"><span id="gEta">--</span><span style="font-size:20px;color:var(--mut)"> %</span></div><div class="lbl">față de STC: <b id="gRel" style="color:var(--txt)">--</b></div></div>
+      <div class="stats">
+        <div class="stat"><div class="k">Energie produsă</div><div class="v" id="stE">--</div></div>
+        <div class="stat"><div class="k">Putere maximă</div><div class="v" id="stPmax">--</div></div>
+        <div class="stat"><div class="k">Pierdere termică</div><div class="v" id="stLoss">--</div></div>
+        <div class="stat"><div class="k">Randament maxim</div><div class="v" id="stEmax">--</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><i style="background:var(--water)"></i>Parametri panou</h3>
+      <div class="params">
+        <div><label>Suprafață A (m²)</label><input id="pA" type="number" step="0.01" value="1.6"></div>
+        <div><label>η la STC (%)</label><input id="pEta" type="number" step="0.1" value="20"></div>
+        <div><label>NOCT (°C)</label><input id="pNoct" type="number" step="1" value="45"></div>
+        <div><label>γ coef. temp. (%/°C)</label><input id="pGam" type="number" step="0.01" value="0.40"></div>
+        <div><label>Lux per W/m²</label><input id="pLux" type="number" step="1" value="120"></div>
+        <div><label>Alertă T celulă (°C)</label><input id="pWarn" type="number" step="1" value="65"></div>
+      </div>
+      <div class="formula">G = lux / k<br>T<sub>c</sub> = T<sub>aer</sub> + (NOCT − 20)/800 · G<br>η = η<sub>STC</sub> · [1 − γ (T<sub>c</sub> − 25)]<br>P = η · A · G</div>
+    </div>
+  </div>
+</section>
+
+<footer>Datele vin prin WebSocket din Node-RED (<span id="wsurl">—</span>). Dacă nu e conectat, afișează date simulate.</footer>
+<div id="tip"></div>
+
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const C={sun:'#fbbf24',heat:'#fb7185',water:'#38bdf8',eff:'#34d399',pow:'#a78bfa',grid:'#223153',mut:'#8c9bb8'};
+
+/* ---------- parametri ---------- */
+const pk=['pA','pEta','pNoct','pGam','pLux','pWarn'];
+try{const s=JSON.parse(localStorage.getItem('pvparams')||'{}');pk.forEach(k=>{if(s[k]!=null)$(k).value=s[k]})}catch(e){}
+function P(){return{A:+$('pA').value||1.6,eta:(+$('pEta').value||20)/100,noct:+$('pNoct').value||45,gam:(+$('pGam').value||.4)/100,lux:+$('pLux').value||120,warn:+$('pWarn').value||65}}
+pk.forEach(k=>$(k).addEventListener('input',()=>{try{localStorage.setItem('pvparams',JSON.stringify(Object.fromEntries(pk.map(x=>[x,$(x).value]))))}catch(e){};recomputeAll();render()}));
+
+/* ---------- model fotovoltaic ---------- */
+function model(r){
+  const p=P();
+  const G=Math.max(0,r.lux/p.lux);
+  const Tc=r.temp+(p.noct-20)/800*G;
+  const eta=Math.max(0,p.eta*(1-p.gam*(Tc-25)));
+  const pw=eta*p.A*G;
+  const pStc=p.eta*p.A*G;           // fără pierdere termică
+  return{t:r.t,temp:r.temp,hum:r.hum,lux:r.lux,G,Tc,eta:eta*100,pw,pStc};
+}
+
+/* ---------- stare ---------- */
+let raw=[],data=[],energyWh=0,pMax=0,etaMax=0,mode='demo',MAX=20000;
+function push(r){
+  const m=model(r);
+  if(data.length){const dt=Math.min((m.t-data[data.length-1].t)/3600000,0.01);energyWh+=m.pw*dt}
+  raw.push(r);data.push(m);
+  if(m.pw>pMax)pMax=m.pw; if(m.G>5&&m.eta>etaMax)etaMax=m.eta;
+  if(data.length>MAX){data.shift();raw.shift()}
+}
+function recomputeAll(){
+  data=[];energyWh=0;pMax=0;etaMax=0;const old=raw;raw=[];old.forEach(push);
+}
+
+/* ---------- formatare ---------- */
+const f=(v,d=1)=>Number.isFinite(v)?v.toFixed(d):'--';
+function fmtP(w){return w<1?[ (w*1000).toFixed(w<0.01?2:1),'mW']:[w.toFixed(w<10?2:1),'W']}
+function fmtE(wh){return wh<1?(wh*1000).toFixed(1)+' mWh':wh<1000?wh.toFixed(2)+' Wh':(wh/1000).toFixed(3)+' kWh'}
+
+/* ---------- canvas util ---------- */
+function setup(cv){const r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;if(cv.width!==Math.round(r.width*d)||cv.height!==Math.round(r.height*d)){cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d)}const x=cv.getContext('2d');x.setTransform(d,0,0,d,0,0);return{x,w:r.width,h:r.height}}
+function spark(id,arr,col){
+  const{x,w,h}=setup($(id));x.clearRect(0,0,w,h);if(arr.length<2)return;
+  const a=arr.slice(-80),mn=Math.min(...a),mx=Math.max(...a),sp=(mx-mn)||1;
+  x.beginPath();a.forEach((v,i)=>{const px=i/(a.length-1)*w,py=h-3-(v-mn)/sp*(h-6);i?x.lineTo(px,py):x.moveTo(px,py)});
+  x.strokeStyle=col;x.lineWidth=1.8;x.lineJoin='round';x.stroke();
+  x.lineTo(w,h);x.lineTo(0,h);x.closePath();const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,col+'44');g.addColorStop(1,col+'00');x.fillStyle=g;x.fill();
+}
+const hover={};
+function chart(id,series,view){
+  const cv=$(id),{x,w,h}=setup(cv);x.clearRect(0,0,w,h);
+  const L=46,R=46,T=10,B=24,iw=w-L-R,ih=h-T-B;
+  if(view.length<2){x.fillStyle=C.mut;x.font='13px sans-serif';x.fillText('Se așteaptă date…',L,h/2);return}
+  const t0=view[0].t,t1=view[view.length-1].t,ts=(t1-t0)||1;
+  const ax={};
+  ['l','r'].forEach(side=>{
+    const ss=series.filter(s=>s.axis===side);if(!ss.length)return;
+    let mn=Infinity,mx=-Infinity;ss.forEach(s=>view.forEach(d=>{const v=d[s.k];if(v<mn)mn=v;if(v>mx)mx=v}));
+    if(ss[0].zero)mn=Math.min(mn,0);
+    const pad=(mx-mn)*0.12||1;mx+=pad;if(!ss[0].zero)mn-=pad;
+    ax[side]={mn,mx};
+  });
+  const X=t=>L+(t-t0)/ts*iw, Y=(v,a)=>T+ih-(v-ax[a].mn)/(ax[a].mx-ax[a].mn)*ih;
+  // grid + y labels
+  x.font='11px sans-serif';x.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y=T+ih*i/4;x.strokeStyle=C.grid;x.beginPath();x.moveTo(L,y);x.lineTo(w-R,y);x.stroke();
+    ['l','r'].forEach(s=>{if(!ax[s])return;const v=ax[s].mx-(ax[s].mx-ax[s].mn)*i/4;x.fillStyle=series.find(q=>q.axis===s).col+'cc';x.textAlign=s==='l'?'right':'left';x.fillText(v>=100?v.toFixed(0):v.toFixed(1),s==='l'?L-7:w-R+7,y+4)});
+  }
+  // x labels
+  x.fillStyle=C.mut;x.textAlign='center';
+  for(let i=0;i<=4;i++){const t=t0+ts*i/4;x.fillText(new Date(t).toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit',second:ts<600000?'2-digit':undefined}),L+iw*i/4,h-6)}
+  // series
+  series.forEach(s=>{
+    x.beginPath();view.forEach((d,i)=>{const px=X(d.t),py=Y(d[s.k],s.axis);i?x.lineTo(px,py):x.moveTo(px,py)});
+    x.strokeStyle=s.col;x.lineWidth=2;x.lineJoin='round';x.stroke();
+    if(s.fill){x.lineTo(X(t1),T+ih);x.lineTo(X(t0),T+ih);x.closePath();const g=x.createLinearGradient(0,T,0,T+ih);g.addColorStop(0,s.col+'55');g.addColorStop(1,s.col+'00');x.fillStyle=g;x.fill()}
+  });
+  // hover
+  const hv=hover[id];
+  if(hv!=null){
+    const t=t0+(hv-L)/iw*ts;let best=0,bd=1e18;view.forEach((d,i)=>{const dd=Math.abs(d.t-t);if(dd<bd){bd=dd;best=i}});
+    const d=view[best],px=X(d.t);
+    x.strokeStyle='#8c9bb855';x.setLineDash([4,4]);x.beginPath();x.moveTo(px,T);x.lineTo(px,T+ih);x.stroke();x.setLineDash([]);
+    series.forEach(s=>{x.beginPath();x.arc(px,Y(d[s.k],s.axis),4,0,7);x.fillStyle=s.col;x.fill();x.strokeStyle='#0a1020';x.lineWidth=2;x.stroke()});
+    const tip=$('tip');tip.style.display='block';
+    tip.innerHTML='<b>'+new Date(d.t).toLocaleTimeString('ro-RO')+'</b><br>'+series.map(s=>'<span style="color:'+s.col+'">●</span> '+s.n+': <b>'+(s.fmt?s.fmt(d[s.k]):f(d[s.k],2))+'</b>').join('<br>');
+  }
+}
+['c1','c2'].forEach(id=>{
+  const cv=$(id);
+  cv.addEventListener('mousemove',e=>{const r=cv.getBoundingClientRect();hover[id]=e.clientX-r.left;const tip=$('tip');tip.style.left=Math.min(e.clientX+16,innerWidth-190)+'px';tip.style.top=(e.clientY+14)+'px';render()});
+  cv.addEventListener('mouseleave',()=>{hover[id]=null;$('tip').style.display='none';render()});
+});
+let rangeN=300;
+$('range').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;rangeN=+b.dataset.n;[...$('range').children].forEach(c=>c.classList.toggle('on',c===b));render()});
+
+/* ---------- randare ---------- */
+function render(){
+  const p=P(),last=data[data.length-1];
+  $('kArea').textContent=f(p.A,2);$('gmax').textContent=f(p.eta*100*1.25,0)+'%';
+  if(last){
+    $('kTemp').textContent=f(last.temp,1);$('kHum').textContent=f(last.hum,0);
+    $('kG').textContent=f(last.G,last.G<10?1:0);$('kLux').textContent=f(last.lux,0);
+    $('kTc').textContent=f(last.Tc,1);$('kEta').textContent=f(last.eta,2);
+    const[pv,pu]=fmtP(last.pw);$('kP').textContent=pv;$('kPu').textContent=pu;
+    $('gEta').textContent=f(last.eta,2);
+    const rel=last.G>1?last.eta/(p.eta*100)*100:NaN;$('gRel').textContent=Number.isFinite(rel)?f(rel,1)+'%':'—';
+    const frac=Math.min(1,last.eta/(p.eta*125));$('garc').setAttribute('stroke-dasharray',(frac*100)+' 100');
+    $('stE').textContent=fmtE(energyWh);$('stPmax').textContent=fmtP(pMax).join(' ');
+    const loss=last.pStc>0?(1-last.pw/last.pStc)*100:0;$('stLoss').textContent=f(loss,1)+'%';
+    $('stEmax').textContent=etaMax?f(etaMax,2)+'%':'—';
+    const b=$('banner');
+    if(last.Tc>=p.warn){b.textContent='⚠ Temperatura celulei ('+f(last.Tc,1)+' °C) depășește pragul de '+p.warn+' °C — randamentul scade cu '+f(loss,1)+'% față de condițiile STC.';b.classList.add('show')}else b.classList.remove('show');
+  }
+  spark('sTemp',data.map(d=>d.temp),C.heat);spark('sHum',data.map(d=>d.hum),C.water);
+  spark('sG',data.map(d=>d.G),C.sun);spark('sTc',data.map(d=>d.Tc),C.heat);spark('sEta',data.map(d=>d.eta),C.eff);spark('sP',data.map(d=>d.pw),C.pow);
+  const view=rangeN?data.slice(-rangeN):data;
+  chart('c1',[
+    {k:'G',n:'Iradianță',col:C.sun,axis:'l',zero:true,fill:true,fmt:v=>f(v,1)+' W/m²'},
+    {k:'pw',n:'Putere',col:C.pow,axis:'r',zero:true,fmt:v=>fmtP(v).join(' ')}
+  ],view);
+  chart('c2',[
+    {k:'temp',n:'T aer',col:C.water,axis:'l',fmt:v=>f(v,1)+' °C'},
+    {k:'Tc',n:'T celulă',col:C.heat,axis:'l',fmt:v=>f(v,1)+' °C'},
+    {k:'eta',n:'Randament',col:C.eff,axis:'r',fmt:v=>f(v,2)+' %'}
+  ],view);
+}
+
+/* ---------- ceas ---------- */
+setInterval(()=>$('clock').textContent=new Date().toLocaleTimeString('ro-RO'),1000);
+
+/* ---------- date demo (zi simulată comprimată) ---------- */
+let demoTimer=null,demoPhase=0.18;
+function demoSample(){
+  demoPhase+=0.004;                               // ~ o zi în 25 min la 1 eșantion/s
+  const sun=Math.max(0,Math.sin((demoPhase%1)*Math.PI*1));
+  const cloud=1-0.25*Math.max(0,Math.sin(demoPhase*37)+Math.sin(demoPhase*91))/2;
+  const lux=Math.max(0,95000*sun*cloud+(Math.random()-.5)*2500*sun);
+  const temp=14+13*Math.pow(sun,.8)+(Math.random()-.5)*.25;
+  const hum=Math.min(95,Math.max(22,72-38*sun+(Math.random()-.5)*1.2));
+  return{t:Date.now(),temp,hum,lux};
+}
+function startDemo(){
+  if(demoTimer)return;mode='demo';setStatus();
+  raw=[];data=[];energyWh=0;pMax=0;etaMax=0;
+  let now=Date.now();for(let i=400;i>0;i--){const s=demoSample();s.t=now-i*1000;push(s)}
+  demoTimer=setInterval(()=>{push(demoSample());render()},1000);render();
+}
+function stopDemo(){if(demoTimer){clearInterval(demoTimer);demoTimer=null}}
+
+/* ---------- live: WebSocket către Node-RED ---------- */
+const qs=new URLSearchParams(location.search);
+const host=qs.get('host')||(location.hostname||'localhost');
+const port=qs.get('port')||(location.port||'1880');
+const wsUrl=(location.protocol==='https:'?'wss://':'ws://')+host+':'+port+'/ws/pv';
+$('wsurl').textContent=wsUrl;
+function setStatus(){const s=$('status');s.className='pill '+mode;$('statusTxt').textContent=mode==='live'?'LIVE':'DEMO · date simulate'}
+let ws=null;
+function connect(){
+  if(qs.get('demo')==='1'){startDemo();return}
+  try{ws=new WebSocket(wsUrl)}catch(e){startDemo();setTimeout(connect,5000);return}
+  ws.onopen=()=>{stopDemo();raw=[];data=[];energyWh=0;pMax=0;etaMax=0;mode='live';setStatus()};
+  ws.onmessage=ev=>{
+    try{
+      const m=JSON.parse(ev.data);
+      const temp=+(m.temp??m.temperatura),hum=+(m.hum??m.umiditate),lux=+(m.lux??0);
+      if(!Number.isFinite(temp))return;
+      push({t:Date.now(),temp,hum:Number.isFinite(hum)?hum:NaN,lux:Number.isFinite(lux)?lux:0});render();
+    }catch(e){}
+  };
+  ws.onclose=()=>{if(mode==='live'){mode='demo';setStatus()}startDemo();setTimeout(connect,5000)};
+  ws.onerror=()=>{try{ws.close()}catch(e){}};
+}
+addEventListener('resize',render);
+setStatus();connect();
+})();
+</script>
+</body>
+</html>
